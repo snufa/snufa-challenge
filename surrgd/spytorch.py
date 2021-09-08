@@ -4,17 +4,18 @@ import torch
 import torch.nn as nn
 from utils import plot_utils
 
+
 def setup_env():
 
-    dtype = torch.float
-
-    # Check whether a GPU is available
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-        print("Using GPU")
-    else:
-        device = torch.device("cpu")
-        print("Using CPU")
+    # dtype = torch.float
+    #
+    # # Check whether a GPU is available
+    # if torch.cuda.is_available():
+    #     device = torch.device("cuda")
+    #     print("Using GPU")
+    # else:
+    #     device = torch.device("cpu")
+    #     print("Using CPU")
 
     try:
             import google.colab
@@ -25,7 +26,7 @@ def setup_env():
             IN_COLAB = False
             import tqdm
 
-    return dtype, device, IN_COLAB
+    # return dtype, device, IN_COLAB
 
 def h5labels_to_array(datafile):
 
