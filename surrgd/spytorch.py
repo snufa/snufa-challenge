@@ -330,6 +330,8 @@ class SpyTrainer_Sentences():
 class SpyTrainer_SNUFA100():
     def __init__(self, challenge, nb_inputs, nb_hidden, nb_outputs, time_step=1e-3, nb_steps=100, max_time=1.4, batch_size=32, seed=None, dtype=torch.float):
 
+        setup_env()
+
         self.nb_inputs  = nb_inputs
         self.nb_hidden  = nb_hidden
         self.nb_outputs = nb_outputs
