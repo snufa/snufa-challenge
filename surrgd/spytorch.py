@@ -327,12 +327,12 @@ class SpyTrainer_Sentences():
                 return ret
 
 class SpyTrainer_SNUFA100():
-    def __init__(self, challenge, nb_inputs, nb_hidden, nb_outputs, device, time_step=1e-3, nb_steps=100, max_time=1.4, batch_size=32, seed=None):
+    def __init__(self, challenge, nb_inputs, nb_hidden, nb_outputs, time_step=1e-3, nb_steps=100, max_time=1.4, batch_size=32, seed=None, dtype=torch.float):
 
         self.nb_inputs  = nb_inputs
         self.nb_hidden  = nb_hidden
         self.nb_outputs = nb_outputs
-        self.device = device
+        self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         self.time_step = time_step
         self.nb_steps = nb_steps
         self.max_time = max_time
@@ -341,6 +341,7 @@ class SpyTrainer_SNUFA100():
         self.tau_syn = 5e-3
         self.challenge = challenge
         self.seed = seed
+        self.dtype = dtype
 
         if seed is not None:
             np.random.seed(seed)
@@ -349,11 +350,11 @@ class SpyTrainer_SNUFA100():
         self.beta    = float(np.exp(-self.time_step/self.tau_mem))
         self.weight_scale = 0.2
 
-        self.w1 = torch.empty((nb_inputs, nb_hidden),  device=self.device, dtype=dtype, requires_grad=True)
+        self.w1 = torch.empty((nb_inputs, nb_hidden),  device=self.device, dtype=self.dtype, requires_grad=True)
         torch.nn.init.normal_(self.w1, mean=0.0, std=self.weight_scale/np.sqrt(nb_inputs))
-        self.w2 = torch.empty((nb_hidden, nb_outputs), device=self.device, dtype=dtype, requires_grad=True)
+        self.w2 = torch.empty((nb_hidden, nb_outputs), device=self.device, dtype=self.dtype, requires_grad=True)
         torch.nn.init.normal_(self.w2, mean=0.0, std=self.weight_scale/np.sqrt(nb_hidden))
-        self.v1 = torch.empty((nb_hidden, nb_hidden), device=self.device, dtype=dtype, requires_grad=True)
+        self.v1 = torch.empty((nb_hidden, nb_hidden), device=self.device, dtype=self.dtype, requires_grad=True)
         torch.nn.init.normal_(self.v1, mean=0.0, std=self.weight_scale/np.sqrt(nb_hidden))
 
         print("Initialized the network")
@@ -396,14 +397,14 @@ class SpyTrainer_SNUFA100():
     spike_fn  = SurrGradSpike.apply
 
     def run_snn(self, inputs):
-        syn = torch.zeros((self.batch_size,self.nb_hidden), device=self.device, dtype=dtype)
-        mem = torch.zeros((self.batch_size,self.nb_hidden), device=self.device, dtype=dtype)
+        syn = torch.zeros((self.batch_size,self.nb_hidden), device=self.device, dtype=self.dtype)
+        mem = torch.zeros((self.batch_size,self.nb_hidden), device=self.device, dtype=self.dtype)
 
         mem_rec = []
         spk_rec = []
 
         # Compute hidden layer activity
-        out = torch.zeros((self.batch_size, self.nb_hidden), device=self.device, dtype=dtype)
+        out = torch.zeros((self.batch_size, self.nb_hidden), device=self.device, dtype=self.dtype)
         h1_from_input = torch.einsum("abc,cd->abd", (inputs, self.w1))
         for t in range(self.nb_steps):
             self.h1 = h1_from_input[:,t] + torch.einsum("ab,bc->ac", (out, self.v1))
@@ -425,8 +426,8 @@ class SpyTrainer_SNUFA100():
 
         # Readout layer
         self.h2= torch.einsum("abc,cd->abd", (spk_rec, self.w2))
-        flt = torch.zeros((self.batch_size,self.nb_outputs), device=self.device, dtype=dtype)
-        out = torch.zeros((self.batch_size,self.nb_outputs), device=self.device, dtype=dtype)
+        flt = torch.zeros((self.batch_size,self.nb_outputs), device=self.device, dtype=self.dtype)
+        out = torch.zeros((self.batch_size,self.nb_outputs), device=self.device, dtype=self.dtype)
         # out_rec = [out]
         out_rec = []
         for t in range(self.nb_steps):
