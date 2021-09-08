@@ -4,8 +4,35 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 
-def h5labels_to_array(datafile):
+def plot_spike_trains(datafile, dim=(1, 4), sample_idx=None, label=None):
+    """
+    Function to plot samples from the SNUFA100 Dataset
+    datafile: HDF5 file
+    dim: tuple of ints
+    sample_idx: id's of samples you want to plot. If None, we pick random samples.
+    label: label_id if you want to plot a specific label. If None, we pick randomly
+    """
+    firing_times = datafile['spikes']['times'][:]
+    units_fired = datafile['spikes']['units'][:]
+    labels = datafile['labels'][:]
 
+    if not sample_idx:
+        if label:
+            sample_idx = np.where(labels==label)[0]
+        else:
+            sample_idx = np.arange(0, len(units_fired), 1)
+
+    np.random.shuffle(sample_idx)
+    sample_idx = sample_idx[:np.multiply(*dim)]
+
+    fig = plt.figure(figsize=tuple(i*4 for i in dim)[::-1])
+    for i,k in enumerate(sample_idx):
+        ax = plt.subplot(*dim,i+1)
+        ax.scatter(firing_times[k],300-units_fired[k], color="k", alpha=0.33, s=2)
+        ax.set_title(f"Label {labels[k]} (id={k})")
+    plt.show()
+
+def h5labels_to_array(datafile):
     labels_array = np.zeros([(datafile['spikes']['units'].shape[0])], dtype=object)
     for dset in datafile["labels"].keys() :
         ds_data = datafile["labels"][dset][:]
@@ -98,3 +125,4 @@ def plot_raster_hidden(model, datafile):
             plt.yticks([])
         sns.despine()
     plt.show()           # plot_utils.plot_raster_hidden(model)
+
