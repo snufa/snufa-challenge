@@ -29,15 +29,23 @@ def setup_env():
     # return dtype, device, IN_COLAB
 
 def h5labels_to_array(datafile):
-
+    
     labels_array = np.zeros([(datafile['spikes']['units'].shape[0])], dtype=object)
+    
+    # Unlike SNUFA100, here, datafile["labels"] is a HDF5 group
     for dset in datafile["labels"].keys() :
+        # Each dset is a HDF5 dataset corresponding to the sentence ID
+        # and it contains an array of shape (x, 3) where x is the total number of keyword hits.
+        # The array has 3 columns which correspond to the keyword label, start time of keyword hit and end time of keyword hit.
+        # Each row of the array contains the information for one keyword hit. 
+        
         ds_data = datafile["labels"][dset][:]
-
-        a1=np.empty((ds_data.shape[0],), dtype=object)
-        a1[:]=[tuple(row) for row in ds_data]
+        a1 = np.empty((ds_data.shape[0],), dtype=object)
+        a1[:] = [tuple(row) for row in ds_data]
         labels_array[int(dset)] = a1
     
+    # We return a list that contains arrays of 3-tuples. 
+    # Each index of the list corresponds to the sentence ID.
     return labels_array
 
 class SurrGradSpike(torch.autograd.Function):
@@ -363,6 +371,13 @@ class SpyTrainer_SNUFA100():
         print("Initialized the network")
 
     def sparse_datagen_from_hdf5(self, datafile, shuffle=True):
+        """
+        This generator takes a spike dataset and generates spiking network input as sparse tensors. 
+
+        Returns:
+            X: The data ( sample x event x 2 ) the last dim holds (time,neuron) tuples
+            y: The labels
+        """
         X = datafile['spikes']
         y = datafile['labels']
 
@@ -400,6 +415,13 @@ class SpyTrainer_SNUFA100():
     spike_fn  = SurrGradSpike.apply
 
     def run_snn(self, inputs):
+        """
+        This runs the input through a network with 1 hidden layer.
+
+        Returns:
+            out_recs: recordings of the readout layer
+            other_recs: membrane potential and spike recordings from the hidden layer
+        """
         syn = torch.zeros((self.batch_size,self.nb_hidden), device=self.device, dtype=self.dtype)
         mem = torch.zeros((self.batch_size,self.nb_hidden), device=self.device, dtype=self.dtype)
 
@@ -459,7 +481,6 @@ class SpyTrainer_SNUFA100():
         self.train_acc_list = []
         self.test_acc_list = []
 
-        self.count_out_spikes = []
         self.count_hidden_spikes = []
 
         for e in range(nb_epochs):
@@ -500,18 +521,13 @@ class SpyTrainer_SNUFA100():
             self.loss_hist.append(mean_loss)
             self.train_acc_list.append(mean_acc)
 
-            out_stacked = np.vstack(out_spks)
             hid_stacked = np.vstack(hid_spks)
-
-            self.count_out_spikes.append(np.count_nonzero(out_stacked>0)/out_stacked.shape[0])
             self.count_hidden_spikes.append(np.count_nonzero(hid_stacked)/hid_stacked.shape[0])
 
             print("Epoch %i: loss=%.5f, accuracy=%.5f"%(e+1,mean_loss, mean_acc))
-            if e%5==0 or e==(self.nb_epochs-1):
-                if e == self.nb_epochs-1:
-                    test_acc = self.compute_classification_accuracy(test_data, plot_confusion_matrix=False)
-                else:
-                    test_acc = self.compute_classification_accuracy(test_data, plot_confusion_matrix=False)
+
+            if (e%5==0 or e==(self.nb_epochs-1)) and test_data!=None:
+                test_acc = self.compute_classification_accuracy(test_data, plot_confusion_matrix=False)
                 print("Test accuracy: %.3f \n"%(test_acc))
                 self.test_acc_list.append(test_acc)
 
