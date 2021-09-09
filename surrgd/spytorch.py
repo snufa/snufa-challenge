@@ -98,7 +98,7 @@ class SpyTrainer_Sentences():
         self.tau_mem = 10e-3
         self.tau_syn = 5e-3
         self.challenge = challenge
-        self.ignore_index = 100
+        self.ignore_class = 100
         self.seed = seed
 
         if seed is not None:
@@ -132,8 +132,6 @@ class SpyTrainer_Sentences():
             label_times = [(_[1]+_[2])/2 for _ in labels_[sen]]
             split_indices = np.arange(0, sentence_length, self.max_time)
 
-            # (sentence_id, split_start_time, label_id) tuple. label_id=-1 if no label
-
             for i in range(len(split_indices)-1):
                 lexists = False
                 for lid, ltime in zip(label_ids, label_times):
@@ -150,10 +148,15 @@ class SpyTrainer_Sentences():
         return list_label_tuples
 
     def sparse_datagen_from_hdf5(self, datafile, shuffle=True):
+        """
+        This generator takes a spike dataset and generates spiking network input as sparse tensors. 
 
+        Returns:
+            X: The data ( sample x event x 2 ) the last dim holds (time,neuron) tuples
+            y: The labels
+        """
         X = datafile['spikes']
         list_label_tuples = self.get_batches(datafile, shuffle=shuffle)
-
         self.nb_batches = len(list_label_tuples)//self.batch_size
 
         firing_times = X['times']
@@ -184,10 +187,17 @@ class SpyTrainer_Sentences():
             y_batch = torch.tensor(y).to(device)
 
             yield X_batch, y_batch
-    
+
     spike_fn = SurrGradSpike.apply
 
     def run_snn(self, inputs):
+        """
+        This runs the input through a network with 1 hidden layer.
+
+        Returns:
+            out_recs: recordings of the readout layer
+            other_recs: membrane potential and spike recordings from the hidden layer
+        """
         syn = torch.zeros((self.batch_size,self.nb_hidden), device=device, dtype=dtype)
         mem = torch.zeros((self.batch_size,self.nb_hidden), device=device, dtype=dtype)
 
@@ -242,7 +252,7 @@ class SpyTrainer_Sentences():
         log_softmax_fn = nn.LogSoftmax(dim=1)
 
         self.class_weights = torch.ones(self.nb_outputs).to(device)
-        self.class_weights[self.ignore_index] = 1/10000
+        self.class_weights[self.ignore_class] = 1/10000
         self.class_weights /= torch.sum(self.class_weights)
         
         loss_fn = nn.NLLLoss(weight=self.class_weights)
@@ -252,7 +262,6 @@ class SpyTrainer_Sentences():
         self.train_acc_list = []
         self.test_acc_list = []
 
-        self.count_out_spikes = []
         self.count_hidden_spikes = []
 
         for e in range(nb_epochs):
@@ -265,7 +274,6 @@ class SpyTrainer_Sentences():
                     tepoch.set_description(f"Epoch {e+1}")
                     output,recs = self.run_snn(x_local.to_dense())
                     _,spks=recs
-                    out_spks.append(output.detach().cpu().numpy())
                     hid_spks.append(spks.detach().cpu().numpy())
 
                     m,_=torch.max(output,1)
@@ -279,7 +287,8 @@ class SpyTrainer_Sentences():
 
                     # Here we combine supervised loss and the regularizer
                     loss_val = loss_fn(log_p_y, y_local) + reg_loss
-                    acc_val = np.mean((y_local==am).detach().cpu().numpy())
+
+                    acc_val = np.mean((y_local[y_local!=self.ignore_class]==am[y_local!=self.ignore_class]).detach().cpu().numpy())
                     optimizer.zero_grad()
                     loss_val.backward()
                     optimizer.step()
@@ -293,25 +302,20 @@ class SpyTrainer_Sentences():
             self.loss_hist.append(mean_loss)
             self.train_acc_list.append(mean_acc)
 
-            out_stacked = np.vstack(out_spks)
             hid_stacked = np.vstack(hid_spks)
-
-            self.count_out_spikes.append(np.count_nonzero(out_stacked>0)/out_stacked.shape[0])
             self.count_hidden_spikes.append(np.count_nonzero(hid_stacked)/hid_stacked.shape[0])
 
             print("Epoch %i: loss=%.5f, accuracy=%.5f"%(e+1,mean_loss, mean_acc))
-            if e%5==0 or e==(self.nb_epochs-1):
-                if e == self.nb_epochs-1:
-                        test_acc = self.compute_classification_accuracy(test_data, plot_confusion_matrix=False)
-                else:
-                        test_acc = self.compute_classification_accuracy(test_data, plot_confusion_matrix=False)
+            if (e%5==0 or e==(self.nb_epochs-1)) and test_data!=None:
+                
+                test_acc = self.compute_classification_accuracy(test_data, plot_confusion_matrix=False)
                 print("Test accuracy: %.3f \n"%(test_acc))
                 self.test_acc_list.append(test_acc)
 
                 if checkpointPath is not None:
-                        print(f"Saving Checkpoint at {checkpointPath}")
-                        np.savez_compressed(os.path.join(checkpointPath, f"features_{e}"), w1=self.w1.detach().cpu().numpy(), w2=self.w2.detach().cpu().numpy(),    v1=self.v1.detach().cpu().numpy())
-                        print(f"saved{e}")
+                    print(f"Saving Checkpoint at {checkpointPath}")
+                    np.savez_compressed(os.path.join(checkpointPath, f"features_{e}"), w1=self.w1.detach().cpu().numpy(), w2=self.w2.detach().cpu().numpy(),  v1=self.v1.detach().cpu().numpy())
+                    print(f"saved{e}")
 
     def compute_classification_accuracy(self, datafile, plot_confusion_matrix=False):
         """ Computes classification accuracy on supplied data in batches. """
@@ -322,7 +326,7 @@ class SpyTrainer_Sentences():
             output,_ = self.run_snn(x_local.to_dense())
             m,_= torch.max(output,1) # max over time
             _,am=torch.max(m,1)          # argmax over output units
-            tmp = np.mean((y_local==am).detach().cpu().numpy()) # compare to labels
+            tmp = np.mean((y_local[y_local!=self.ignore_class]==am[y_local!=self.ignore_class]).detach().cpu().numpy())
             accs.append(tmp)
             y_true.append(y_local.detach().cpu().numpy().flatten())
             y_pred.append(am.detach().cpu().numpy().flatten())
@@ -486,14 +490,12 @@ class SpyTrainer_SNUFA100():
         for e in range(nb_epochs):
             local_loss = []
             local_acc = []
-            out_spks = []
             hid_spks = []
             with tqdm.tqdm(self.sparse_datagen_from_hdf5(train_data),  unit="batch", leave=False) as tepoch:
                 for x_local, y_local in tepoch:
                     tepoch.set_description(f"Epoch {e+1}")
                     output,recs = self.run_snn(x_local.to_dense())
                     _,spks=recs
-                    out_spks.append(output.detach().cpu().numpy())
                     hid_spks.append(spks.detach().cpu().numpy())
 
                     m,_=torch.max(output,1)
