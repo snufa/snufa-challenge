@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 from utils import plot_utils
 from tqdm.autonotebook import tqdm
+from utils.data import h5labels_to_array
+
 
 class SurrGradSpike(torch.autograd.Function):
     """

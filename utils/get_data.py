@@ -141,12 +141,12 @@ def get_dataset(cache_dir, cache_subdir, dataset="snufa100"):
     for fn in files:
         origin = "%s/%s" % (base_url, fn)
         if os.path.exists(os.path.join(cache_dir, cache_subdir, fn)):
-            print("File %s already exists, skipping" % (fn))
+            print("File %s already exists, skipping" % fn)
             fpaths.append(os.path.abspath(os.path.join(cache_dir, cache_subdir, fn)[:-3]))
         else:
             hdf5_file_path = get_and_gunzip(origin, fn, md5hash=file_hashes[fn], cache_dir=cache_dir,
                                             cache_subdir=cache_subdir)
-            print("File %s decompressed to:" % (fn))
+            print("File %s decompressed to:" % fn)
             print(hdf5_file_path)
             fpaths.append(os.path.abspath(hdf5_file_path))
 

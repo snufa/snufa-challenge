@@ -1,14 +1,15 @@
 import numpy as np
 
+
 def h5labels_to_array(datafile):
     labels_array = np.zeros(datafile['spikes']['units'].shape[0], dtype=object)
 
     # Unlike SNUFA100, here, datafile["labels"] is a HDF5 group
     for dset in datafile["labels"].keys():
-        # Each dset is a HDF5 dataset corresponding to the sentence ID
-        # and it contains an array of shape (x, 3) where x is the total number of keyword hits.
-        # The array has 3 columns which correspond to the keyword label, start time of keyword hit and end time of keyword hit.
-        # Each row of the array contains the information for one keyword hit.
+        # Each dset is a HDF5 dataset corresponding to the sentence ID and it contains an array of shape (x,
+        # 3) where x is the total number of keyword hits. The array has 3 columns which correspond to the keyword
+        # label, start time of keyword hit and end time of keyword hit. Each row of the array contains the
+        # information for one keyword hit.
 
         ds_data = datafile["labels"][dset][:]
 
