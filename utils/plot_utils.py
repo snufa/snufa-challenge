@@ -3,6 +3,7 @@ import torch
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
+from surrgd.spytorch import h5labels_to_array
 
 
 def plot_spike_trains(datafile, dim=(1, 4), sample_idx=None, label=None):
@@ -61,30 +62,11 @@ def plot_spike_trains_sentences(datafile, dim=(1, 4), sample_idx=None, savefig=F
         [ax.axvline((lstart + lend) / 2, color='r', linestyle='-', alpha=0.7, lw=1.0) for lstart, lend in
          zip(sen_label_start, sen_label_end)]
         [ax.axvspan(lstart, lend, facecolor='r', alpha=0.3) for lstart, lend in zip(sen_label_start, sen_label_end)]
+    plt.tight_layout()
     if savefig:
         plt.savefig("sample_sentence_train.png", dpi=300)
     else:
         plt.show()
-
-
-def h5labels_to_array(datafile):
-    labels_array = np.zeros([(datafile['spikes']['units'].shape[0])], dtype=object)
-
-    # Unlike SNUFA100, here, datafile["labels"] is a HDF5 group
-    for dset in datafile["labels"].keys():
-        # Each dset is a HDF5 dataset corresponding to the sentence ID
-        # and it contains an array of shape (x, 3) where x is the total number of keyword hits.
-        # The array has 3 columns which correspond to the keyword label, start time of keyword hit and end time of keyword hit.
-        # Each row of the array contains the information for one keyword hit.
-
-        ds_data = datafile["labels"][dset][:]
-        a1 = np.empty((ds_data.shape[0],), dtype=object)
-        a1[:] = [tuple(row) for row in ds_data]
-        labels_array[int(dset)] = a1
-
-    # We return a list that contains arrays of 3-tuples.
-    # Each index of the list corresponds to the sentence ID.
-    return labels_array
 
 
 def plot_acc_curves(model):
@@ -168,27 +150,27 @@ def plot_raster_hidden(model, datafile):
     model: instance of SpyTrainer_Sentences class or SpyTrainer_SNUFA100 class
     datafile: HDF5 file
     """
-    x_batch, _ = model.get_mini_batch(datafile)
+    # Get a small batch of data and predict labels
+    x_batch, y_batch = model.get_mini_batch(datafile)
     output, other_recordings = model.run_snn(x_batch.to_dense())
-    _, spk_rec = other_recordings
+    mem_rec, spk_rec = other_recordings
 
     spk_rec = spk_rec.detach().cpu().numpy()
-
     m, _ = torch.max(output, 1)
     _, y_pred = torch.max(m, 1)  # argmax over output units
     y_pred = y_pred.detach().cpu().numpy()
 
+    # plot the spike rasters of the hidden layer for 5 samples
     nb_plt = 5
     gs = gridspec.GridSpec(1, nb_plt)
-    fig = plt.figure(figsize=(7, 3), dpi=150)
+    fig = plt.figure(figsize=(14, 3), dpi=150)
     for i in range(nb_plt):
         plt.subplot(gs[i])
         plt.imshow(spk_rec[i].T, cmap=plt.cm.gray_r, origin="lower")
-        plt.title(f"{y_pred[i]}\nspikes = {spk_rec[i].sum()}", fontdict={'fontsize': 8})
+        plt.title(f"Target label = {y_batch[i]}\nPred label = {y_pred[i]}\n #spikes = {spk_rec[i].sum()}",
+                  fontdict={'fontsize': 8})
         if i == 0:
-            plt.xlabel("Time")
-            plt.ylabel("Units")
-        else:
-            plt.yticks([])
+            plt.xlabel("Time step")
+            plt.ylabel("Neuron index")
         sns.despine()
-    plt.show()  # plot_utils.plot_raster_hidden(model)
+    plt.show()
