@@ -34,6 +34,35 @@ def plot_spike_trains(datafile, dim=(1, 4), sample_idx=None, label=None):
     plt.show()
 
 
+def plot_spike_trains_sentences(datafile, dim=(1, 4), sample_idx=None):
+    firing_times = datafile['spikes']['times'][:]
+    units_fired = datafile['spikes']['units'][:]
+    labels = h5labels_to_array(datafile)
+
+    if not sample_idx:
+        sample_idx = np.arange(0, len(units_fired), 1)
+        np.random.shuffle(sample_idx)
+        sample_idx = sample_idx[:np.multiply(*dim)]
+
+    fig = plt.figure(figsize=(10 * dim[1], 4 * dim[0]))
+    for i, k in enumerate(sample_idx):
+        ax = plt.subplot(*dim, i + 1)
+        ax.scatter(firing_times[k], 300 - units_fired[k], color="k", alpha=0.33, s=0.5)
+        sen_label_id = [int(_[0]) for _ in labels[k]]
+        sen_label_start = [_[1] for _ in labels[k]]
+        sen_label_end = [_[2] for _ in labels[k]]
+
+        ax.set_title(", ".join(f"Label {lid} from {lstart} till {lend}"
+                               for lid, lstart, lend in
+                               zip(sen_label_id, sen_label_start, sen_label_end)),
+                     fontdict={'fontsize': 8})
+
+        [ax.axvline((lstart + lend) / 2, color='r', linestyle='-', alpha=0.7, lw=0.5) for lstart, lend in zip(sen_label_start, sen_label_end)]
+        [ax.axvspan(lstart, lend, facecolor='r', alpha=0.3) for lstart, lend in zip(sen_label_start, sen_label_end)]
+    plt.savefig("sample_sentence_train.png", dpi=300)
+    plt.show()
+
+
 def h5labels_to_array(datafile):
     labels_array = np.zeros([(datafile['spikes']['units'].shape[0])], dtype=object)
 

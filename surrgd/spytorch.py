@@ -7,7 +7,7 @@ from tqdm.autonotebook import tqdm
 
 
 def h5labels_to_array(datafile):
-    labels_array = np.zeros([(datafile['spikes']['units'].shape[0])], dtype=object)
+    labels_array = np.zeros(datafile['spikes']['units'].shape[0], dtype=object)
 
     # Unlike SNUFA100, here, datafile["labels"] is a HDF5 group
     for dset in datafile["labels"].keys():
@@ -227,7 +227,7 @@ class SpyTrainer_Sentences():
         other_recs = [mem_rec, spk_rec]
         return out_rec, other_recs
 
-    def train(self, train_data, test_data, lr=1e-3, nb_epochs=10, checkpointPath=None):
+    def train(self, train_data, test_data=None, lr=1e-3, nb_epochs=10, checkpointPath=None):
         self.nb_epochs = nb_epochs
         self.lr = lr
         params = [self.w1, self.w2, self.v1]
@@ -253,6 +253,7 @@ class SpyTrainer_Sentences():
             local_acc = []
             out_spks = []
             hid_spks = []
+            batch = 0
             with tqdm(self.sparse_datagen_from_hdf5(train_data), unit="batch", leave=False) as tepoch:
                 for x_local, y_local in tepoch:
                     tepoch.set_description(f"Epoch {e + 1}")
