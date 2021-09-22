@@ -3,7 +3,7 @@ import torch
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
-from surrgd.spytorch import h5labels_to_array
+from utils.data import h5labels_to_array
 
 
 def plot_spike_trains(datafile, dim=(1, 4), sample_idx=None, label=None):
