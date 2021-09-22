@@ -45,7 +45,7 @@ def plot_spike_trains_sentences(datafile, dim=(1, 4), sample_idx=None, savefig=F
         np.random.shuffle(sample_idx)
         sample_idx = sample_idx[:np.multiply(*dim)]
 
-    fig = plt.figure(figsize=(10 * dim[1], 4 * dim[0]))
+    fig = plt.figure(figsize=(8 * dim[1], 4 * dim[0]))
     for i, k in enumerate(sample_idx):
         ax = plt.subplot(*dim, i + 1)
         ax.scatter(firing_times[k], 300 - units_fired[k], color="k", alpha=0.33, s=0.5)
